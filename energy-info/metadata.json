@@ -1,0 +1,19 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Id": "energy-info",
+        "Name": "Energy Info",
+        "Description": "Consumo Watt in tempo reale",
+        "Icon": "battery-charging",
+        "Authors": [
+            {
+                "Name": "Fra",
+                "Email": "postadelmaga@gmail.com"
+            }
+        ],
+        "Category": "System Information",
+        "Version": "1.1",
+        "License": "GPL"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}
