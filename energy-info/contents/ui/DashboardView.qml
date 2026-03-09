@@ -8,7 +8,7 @@ Item {
     required property var root
 
     anchors.fill: parent
-    anchors.margins: Kirigami.Units.smallSpacing
+    anchors.margins: 0 // Ridotto il margine esterno del dashboard
 
     // Spessori invertiti: Watt (grande) sottile, Batteria (piccola) grossa
     readonly property real strokeBig: Math.max(2, Math.min(width, height) * 0.025)
@@ -16,13 +16,13 @@ Item {
 
     ColumnLayout {
         anchors.fill: parent
-        spacing: Kirigami.Units.largeSpacing
+        spacing: Kirigami.Units.smallSpacing // Ridotto lo spazio tra gauge e barre sotto
 
         // Riga superiore con i due gauge
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: Kirigami.Units.largeSpacing
+            spacing: Kirigami.Units.smallSpacing // Ridotto lo spazio tra i due gauge
 
             // Gauge WATT (Sinistra)
             Item {
@@ -39,7 +39,7 @@ Item {
                         var ctx = getContext("2d");
                         ctx.clearRect(0, 0, width, height);
                         var cx = width / 2, cy = height / 2;
-                        var r = Math.min(width, height) / 2 - dashboardMode.strokeBig - 2;
+                        var r = Math.min(width, height) / 2 - dashboardMode.strokeBig / 2 - 1; // Gauge più grande
                         var s = 0.75 * Math.PI, e = 2.25 * Math.PI;
                         ctx.beginPath();
                         ctx.strokeStyle = Kirigami.Theme.disabledTextColor;
@@ -106,7 +106,7 @@ Item {
                         var ctx = getContext("2d");
                         ctx.clearRect(0, 0, width, height);
                         var cx = width / 2, cy = height / 2;
-                        var r = Math.min(width, height) / 2 - dashboardMode.strokeSml - 2;
+                        var r = Math.min(width, height) / 2 - dashboardMode.strokeSml / 2 - 1; // Gauge più grande
                         var s = 0.75 * Math.PI, e = 2.25 * Math.PI;
                         ctx.beginPath();
                         ctx.strokeStyle = Kirigami.Theme.disabledTextColor;
