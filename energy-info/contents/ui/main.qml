@@ -21,6 +21,7 @@ PlasmoidItem {
     property string batteryStatus: "--"
     property string voltageV: "-- V"
     property string currentA: "-- A"
+    property string batteryHealth: "--"
 
     // History for Sparkline
     property var history: []
@@ -42,13 +43,14 @@ PlasmoidItem {
         connectedSources: []
         onNewData: (source, data) => {
             let output = data.stdout.trim().split(" ");
-            if (output.length >= 6) {
+            if (output.length >= 7) {
                 let cap = output[0];
                 let stat = output[1];
                 let v_raw = parseFloat(output[2]);
                 let c_raw = parseFloat(output[3]);
                 let ch_now = parseFloat(output[4]);
                 let ch_full = parseFloat(output[5]);
+                let ch_design = parseFloat(output[6]);
                 
                 let val = (v_raw * c_raw) / 10**12;
                 let prefix = (stat === "Charging") ? "+" : "";
@@ -60,6 +62,13 @@ PlasmoidItem {
                 root.batteryStatus = stat;
                 root.voltageV = (v_raw / 10**6).toFixed(2) + " V";
                 root.currentA = (c_raw / 10**6).toFixed(2) + " A";
+
+                if (ch_design > 0) {
+                    let health = (ch_full / ch_design) * 100;
+                    root.batteryHealth = Math.min(100, Math.round(health)) + "%";
+                } else {
+                    root.batteryHealth = "--";
+                }
 
                 // Time estimation
                 if (c_raw > 0) {
@@ -93,7 +102,7 @@ PlasmoidItem {
         repeat: true
         triggeredOnStart: true
         onTriggered: {
-            executable.connectSource("awk 'BEGIN {getline cap < \"/sys/class/power_supply/BAT0/capacity\"; getline stat < \"/sys/class/power_supply/BAT0/status\"; getline v < \"/sys/class/power_supply/BAT0/voltage_now\"; getline c < \"/sys/class/power_supply/BAT0/current_now\"; getline ch_now < \"/sys/class/power_supply/BAT0/charge_now\"; getline ch_full < \"/sys/class/power_supply/BAT0/charge_full\"; print cap, stat, v, c, ch_now, ch_full}'");
+            executable.connectSource("awk 'BEGIN {getline cap < \"/sys/class/power_supply/BAT0/capacity\"; getline stat < \"/sys/class/power_supply/BAT0/status\"; getline v < \"/sys/class/power_supply/BAT0/voltage_now\"; getline c < \"/sys/class/power_supply/BAT0/current_now\"; getline ch_now < \"/sys/class/power_supply/BAT0/charge_now\"; getline ch_full < \"/sys/class/power_supply/BAT0/charge_full\"; getline ch_design < \"/sys/class/power_supply/BAT0/charge_full_design\"; print cap, stat, v, c, ch_now, ch_full, ch_design}'");
         }
     }
 
@@ -104,7 +113,7 @@ PlasmoidItem {
         Layout.minimumWidth: isVertical ? 0 : contentRow.implicitWidth
         Layout.minimumHeight: isVertical ? contentRow.implicitHeight : 0
         implicitWidth: Layout.minimumWidth
-        implicitHeight: Layout.minimumHeight
+        implicitHeight: Layout.implicitHeight
 
         hoverEnabled: true
         onClicked: root.expanded = !root.expanded
@@ -126,7 +135,7 @@ PlasmoidItem {
             PlasmaComponents.Label {
                 text: root.wattText
                 color: root.wattColor
-                font.pixelSize: Kirigami.Theme.defaultFont.pixelSize - 1
+                font.pixelSize: Kirigami.Theme.defaultFont.pixelSize 
                 font.bold: true
                 Layout.alignment: Qt.AlignCenter
             }
@@ -134,16 +143,16 @@ PlasmoidItem {
     }
 
     fullRepresentation: Item {
-        Layout.minimumWidth: Kirigami.Units.gridUnit * 8
-        Layout.minimumHeight: Kirigami.Units.gridUnit * 4
+        Layout.minimumWidth: Kirigami.Units.gridUnit * 12
+        Layout.minimumHeight: Kirigami.Units.gridUnit * 10
         
         Layout.preferredWidth:  root.viewMode === 1 ? Kirigami.Units.gridUnit * 18
-                              : root.viewMode === 2 ? Kirigami.Units.gridUnit * 12
-                              : Kirigami.Units.gridUnit * 16
+                               : root.viewMode === 2 ? Kirigami.Units.gridUnit * 12
+                               : Kirigami.Units.gridUnit * 18
                               
         Layout.preferredHeight: root.viewMode === 1 ? Kirigami.Units.gridUnit * 12
-                               : root.viewMode === 2 ? Kirigami.Units.gridUnit * 6
-                               : Kirigami.Units.gridUnit * 8
+                                : root.viewMode === 2 ? Kirigami.Units.gridUnit * 6
+                                : Kirigami.Units.gridUnit * 12
 
         Loader {
             id: viewLoader

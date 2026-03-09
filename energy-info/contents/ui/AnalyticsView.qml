@@ -16,7 +16,7 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         height: parent.height * 0.12
-        text: root.fullWattText + "  •  " + root.batteryCapacity + "  •  " + root.timeRemaining
+        text: root.fullWattText + "  •  " + root.batteryCapacity + "  •  " + root.batteryHealth + " Health  •  " + root.timeRemaining
         font.bold: true
         color: Kirigami.Theme.textColor
         opacity: 0.7
