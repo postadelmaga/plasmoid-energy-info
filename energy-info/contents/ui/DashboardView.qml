@@ -169,9 +169,9 @@ Item {
 
             Repeater {
                 model: [
-                    { value: root.voltageV,          progress: parseFloat(root.voltageV) / 20.0,   color: "#00FFFF" },
-                    { value: root.currentA,          progress: parseFloat(root.currentA) / 5.0,    color: "#FFFF00" },
-                    { value: "💓 " + root.batteryHealth, progress: parseFloat(root.batteryHealth) / 100.0, color: "#FF1493" }
+                    { value: root.voltageV,          progress: (parseFloat(root.voltageV) || 0) / 20.0,   color: "#00FFFF" },
+                    { value: root.currentA,          progress: (parseFloat(root.currentA) || 0) / 5.0,    color: "#FFFF00" },
+                    { value: "💓 " + root.batteryHealth, progress: (parseFloat(root.batteryHealth) || 0) / 100.0, color: "#FF1493" }
                 ]
                 delegate: RowLayout {
                     Layout.fillWidth: true

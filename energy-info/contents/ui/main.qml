@@ -46,20 +46,20 @@ PlasmoidItem {
             if (output.length >= 7) {
                 let cap = output[0];
                 let stat = output[1];
-                let v_raw = parseFloat(output[2]);
-                let c_raw = parseFloat(output[3]);
-                let ch_now = parseFloat(output[4]);
-                let ch_full = parseFloat(output[5]);
-                let ch_design = parseFloat(output[6]);
+                let v_raw = parseFloat(output[2]) || 0;
+                let c_raw = parseFloat(output[3]) || 0;
+                let ch_now = parseFloat(output[4]) || 0;
+                let ch_full = parseFloat(output[5]) || 0;
+                let ch_design = parseFloat(output[6]) || 0;
                 
                 let val = (v_raw * c_raw) / 10**12;
                 let prefix = (stat === "Charging") ? "+" : "";
-                root.currentWatts = val;
-                root.wattText = prefix + Math.round(val) + "W";
-                root.fullWattText = prefix + val.toFixed(2) + " W";
+                root.currentWatts = isNaN(val) ? 0.0 : val;
+                root.wattText = prefix + Math.round(root.currentWatts) + "W";
+                root.fullWattText = prefix + root.currentWatts.toFixed(2) + " W";
                 
-                root.batteryCapacity = cap + "%";
-                root.batteryStatus = stat;
+                root.batteryCapacity = (cap || "0") + "%";
+                root.batteryStatus = stat || "Unknown";
                 root.voltageV = (v_raw / 10**6).toFixed(2) + " V";
                 root.currentA = (c_raw / 10**6).toFixed(2) + " A";
 
@@ -88,7 +88,7 @@ PlasmoidItem {
 
                 // Update history for sparkline
                 let newHistory = root.history.slice();
-                newHistory.push(val);
+                newHistory.push(root.currentWatts);
                 if (newHistory.length > root.maxHistory) newHistory.shift();
                 root.history = newHistory;
             }
@@ -102,7 +102,15 @@ PlasmoidItem {
         repeat: true
         triggeredOnStart: true
         onTriggered: {
-            executable.connectSource("awk 'BEGIN {getline cap < \"/sys/class/power_supply/BAT0/capacity\"; getline stat < \"/sys/class/power_supply/BAT0/status\"; getline v < \"/sys/class/power_supply/BAT0/voltage_now\"; getline c < \"/sys/class/power_supply/BAT0/current_now\"; getline ch_now < \"/sys/class/power_supply/BAT0/charge_now\"; getline ch_full < \"/sys/class/power_supply/BAT0/charge_full\"; getline ch_design < \"/sys/class/power_supply/BAT0/charge_full_design\"; print cap, stat, v, c, ch_now, ch_full, ch_design}'");
+            executable.connectSource("awk 'BEGIN { " +
+                "if ((getline cap < \"/sys/class/power_supply/BAT0/capacity\") <= 0) cap = 0; " +
+                "if ((getline stat < \"/sys/class/power_supply/BAT0/status\") <= 0) stat = \"Unknown\"; " +
+                "if ((getline v < \"/sys/class/power_supply/BAT0/voltage_now\") <= 0) v = 0; " +
+                "if ((getline c < \"/sys/class/power_supply/BAT0/current_now\") <= 0) c = 0; " +
+                "if ((getline ch_now < \"/sys/class/power_supply/BAT0/charge_now\") <= 0) ch_now = 0; " +
+                "if ((getline ch_full < \"/sys/class/power_supply/BAT0/charge_full\") <= 0) ch_full = 0; " +
+                "if ((getline ch_design < \"/sys/class/power_supply/BAT0/charge_full_design\") <= 0) ch_design = 0; " +
+                "print cap, stat, v, c, ch_now, ch_full, ch_design }'");
         }
     }
 
