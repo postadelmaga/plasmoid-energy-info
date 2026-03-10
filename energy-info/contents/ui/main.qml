@@ -37,6 +37,7 @@ PlasmoidItem {
     
     // Tracking flags
     property bool healthCalculated: false
+    property double healthChargeFull: 0.0 // Cache for ch_full during health calculation
 
     // Tooltip
     toolTipMainText: i18n("Power Consumption")
@@ -95,7 +96,8 @@ PlasmoidItem {
             root.currentA = root.currentARaw.toFixed(2) + " A";
             
             // Update wattage calculation using the display current
-            let val = (root.voltageVRaw * 10**6 * c_display) / 10**12;
+            // voltageVRaw is in V, c_display is in µA, so: V × µA / 10^6 = W
+            let val = (root.voltageVRaw * c_display) / 10**6;
             let prefix = (root.batteryStatus === "Charging") ? "+" : "";
             root.currentWatts = isNaN(val) ? 0.0 : val;
             root.wattText = prefix + Math.round(root.currentWatts) + "W";
@@ -153,7 +155,7 @@ PlasmoidItem {
         engine: "executable"
         connectedSources: []
         onNewData: (source, data) => {
-            let ch_full = parseFloat(data.stdout.trim()) || 0;
+            root.healthChargeFull = parseFloat(data.stdout.trim()) || 0;
             executableHealthDesign.connectSource("cat /sys/class/power_supply/BAT0/charge_full_design");
             disconnectSource(source);
         }
@@ -165,9 +167,10 @@ PlasmoidItem {
         connectedSources: []
         onNewData: (source, data) => {
             let ch_design = parseFloat(data.stdout.trim()) || 0;
-            if (ch_design > 0) {
-                // Need to get ch_full from previous call
-                executableChargeFull.connectSource("cat /sys/class/power_supply/BAT0/charge_full");
+            if (ch_design > 0 && root.healthChargeFull > 0) {
+                let health = (root.healthChargeFull / ch_design) * 100;
+                root.batteryHealth = health.toFixed(1) + "%";
+                root.healthCalculated = true;
             }
             disconnectSource(source);
         }
