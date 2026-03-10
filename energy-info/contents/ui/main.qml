@@ -19,8 +19,10 @@ PlasmoidItem {
     // Granular details
     property string batteryCapacity: "--"
     property string batteryStatus: "--"
-    property string voltageV: "-- V"
-    property string currentA: "-- A"
+    property double voltageVRaw: 0.0  // Numeric value in Volts
+    property double currentARaw: 0.0  // Numeric value in Amperes
+    property string voltageV: "-- V"  // Display string with unit
+    property string currentA: "-- A"  // Display string with unit
     property string batteryHealth: "--"
 
     // History for Sparkline
@@ -32,85 +34,169 @@ PlasmoidItem {
 
     // New detailed properties
     property string timeRemaining: "--"
+    
+    // Tracking flags
+    property bool healthCalculated: false
 
     // Tooltip
     toolTipMainText: i18n("Power Consumption")
     toolTipSubText: root.fullWattText
 
+    // DataSource per letture rapide (ogni 2 secondi)
     Plasma5Support.DataSource {
-        id: executable
+        id: executablePower
         engine: "executable"
         connectedSources: []
         onNewData: (source, data) => {
-            let output = data.stdout.trim().split(" ");
-            if (output.length >= 7) {
-                let cap = output[0];
-                let stat = output[1];
-                let v_raw = parseFloat(output[2]) || 0;
-                let c_raw = parseFloat(output[3]) || 0;
-                let ch_now = parseFloat(output[4]) || 0;
-                let ch_full = parseFloat(output[5]) || 0;
-                let ch_design = parseFloat(output[6]) || 0;
-                
-                let val = (v_raw * c_raw) / 10**12;
-                let prefix = (stat === "Charging") ? "+" : "";
-                root.currentWatts = isNaN(val) ? 0.0 : val;
-                root.wattText = prefix + Math.round(root.currentWatts) + "W";
-                root.fullWattText = prefix + root.currentWatts.toFixed(2) + " W";
-                
-                root.batteryCapacity = (cap || "0") + "%";
-                root.batteryStatus = stat || "Unknown";
-                root.voltageV = (v_raw / 10**6).toFixed(2) + " V";
-                root.currentA = (c_raw / 10**6).toFixed(2) + " A";
+            let cap = data.stdout.trim();
+            if (cap && cap !== "") {
+                root.batteryCapacity = cap + "%";
+            }
+            disconnectSource(source);
+        }
+    }
 
-                if (ch_design > 0) {
-                    let health = (ch_full / ch_design) * 100;
-                    root.batteryHealth = Math.min(100, Math.round(health)) + "%";
-                } else {
-                    root.batteryHealth = "--";
-                }
+    Plasma5Support.DataSource {
+        id: executableStatus
+        engine: "executable"
+        connectedSources: []
+        onNewData: (source, data) => {
+            let stat = data.stdout.trim();
+            if (stat && stat !== "") {
+                root.batteryStatus = stat;
+            }
+            disconnectSource(source);
+        }
+    }
 
-                // Time estimation
-                if (c_raw > 0) {
-                    let hours = (stat === "Charging") ? (ch_full - ch_now) / c_raw : ch_now / c_raw;
-                    let h = Math.floor(hours);
-                    let m = Math.floor((hours - h) * 60);
-                    root.timeRemaining = (h > 0 ? h + "h " : "") + m + "m";
-                } else {
-                    root.timeRemaining = "--";
-                }
+    Plasma5Support.DataSource {
+        id: executableVoltage
+        engine: "executable"
+        connectedSources: []
+        onNewData: (source, data) => {
+            let v_raw = parseFloat(data.stdout.trim()) || 0;
+            root.voltageVRaw = v_raw / 10**6;  // Convert μV to V
+            root.voltageV = root.voltageVRaw.toFixed(2) + " V";
+            disconnectSource(source);
+        }
+    }
 
-                // Update color
-                if (stat === "Charging") root.wattColor = "#8be9fd"; // Cyan for charging
-                else if (val > 25) root.wattColor = "#ff5555";
-                else if (val > 15) root.wattColor = "#ffb86c";
-                else root.wattColor = "#50fa7b";
+    Plasma5Support.DataSource {
+        id: executableCurrent
+        engine: "executable"
+        connectedSources: []
+        onNewData: (source, data) => {
+            let c_raw = parseFloat(data.stdout.trim()) || 0;
+            
+            // Use 1A as fixed value when current is 0
+            let c_display = c_raw === 0 ? 1000000 : c_raw;  // 1A = 1000000 μA
+            
+            root.currentARaw = c_display / 10**6;  // Convert μA to A (1.0 if c_raw was 0)
+            root.currentA = root.currentARaw.toFixed(2) + " A";
+            
+            // Update wattage calculation using the display current
+            let val = (root.voltageVRaw * 10**6 * c_display) / 10**12;
+            let prefix = (root.batteryStatus === "Charging") ? "+" : "";
+            root.currentWatts = isNaN(val) ? 0.0 : val;
+            root.wattText = prefix + Math.round(root.currentWatts) + "W";
+            root.fullWattText = prefix + root.currentWatts.toFixed(2) + " W";
 
-                // Update history for sparkline
-                let newHistory = root.history.slice();
-                newHistory.push(root.currentWatts);
-                if (newHistory.length > root.maxHistory) newHistory.shift();
-                root.history = newHistory;
+            // Update color
+            if (root.batteryStatus === "Charging") root.wattColor = "#8be9fd"; // Cyan for charging
+            else if (val > 25) root.wattColor = "#ff5555";
+            else if (val > 15) root.wattColor = "#ffb86c";
+            else root.wattColor = "#50fa7b";
+
+            // Update history for sparkline
+            let newHistory = root.history.slice();
+            newHistory.push(root.currentWatts);
+            if (newHistory.length > root.maxHistory) newHistory.shift();
+            root.history = newHistory;
+
+            // Time estimation (use original c_raw for accurate time calculation)
+            if (c_raw > 0) {
+                let ch_now = parseFloat(executableChargeNow.connectedSources[0]) || 0;
+                let ch_full = parseFloat(executableChargeFull.connectedSources[0]) || 0;
+                let hours = (root.batteryStatus === "Charging") ? (ch_full - ch_now) / c_raw : ch_now / c_raw;
+                let h = Math.floor(hours);
+                let m = Math.floor((hours - h) * 60);
+                root.timeRemaining = (h > 0 ? h + "h " : "") + m + "m";
+            } else {
+                root.timeRemaining = "--";
+            }
+            
+            disconnectSource(source);
+        }
+    }
+
+    Plasma5Support.DataSource {
+        id: executableChargeNow
+        engine: "executable"
+        connectedSources: []
+        onNewData: (source, data) => {
+            disconnectSource(source);
+        }
+    }
+
+    Plasma5Support.DataSource {
+        id: executableChargeFull
+        engine: "executable"
+        connectedSources: []
+        onNewData: (source, data) => {
+            disconnectSource(source);
+        }
+    }
+
+    // Health check - once at startup and then every 60 seconds
+    Plasma5Support.DataSource {
+        id: executableHealth
+        engine: "executable"
+        connectedSources: []
+        onNewData: (source, data) => {
+            let ch_full = parseFloat(data.stdout.trim()) || 0;
+            executableHealthDesign.connectSource("cat /sys/class/power_supply/BAT0/charge_full_design");
+            disconnectSource(source);
+        }
+    }
+
+    Plasma5Support.DataSource {
+        id: executableHealthDesign
+        engine: "executable"
+        connectedSources: []
+        onNewData: (source, data) => {
+            let ch_design = parseFloat(data.stdout.trim()) || 0;
+            if (ch_design > 0) {
+                // Need to get ch_full from previous call
+                executableChargeFull.connectSource("cat /sys/class/power_supply/BAT0/charge_full");
             }
             disconnectSource(source);
         }
     }
 
     Timer {
+        id: timerPower
         interval: 2000
         running: true
         repeat: true
         triggeredOnStart: true
         onTriggered: {
-            executable.connectSource("awk 'BEGIN { " +
-                "if ((getline cap < \"/sys/class/power_supply/BAT0/capacity\") <= 0) cap = 0; " +
-                "if ((getline stat < \"/sys/class/power_supply/BAT0/status\") <= 0) stat = \"Unknown\"; " +
-                "if ((getline v < \"/sys/class/power_supply/BAT0/voltage_now\") <= 0) v = 0; " +
-                "if ((getline c < \"/sys/class/power_supply/BAT0/current_now\") <= 0) c = 0; " +
-                "if ((getline ch_now < \"/sys/class/power_supply/BAT0/charge_now\") <= 0) ch_now = 0; " +
-                "if ((getline ch_full < \"/sys/class/power_supply/BAT0/charge_full\") <= 0) ch_full = 0; " +
-                "if ((getline ch_design < \"/sys/class/power_supply/BAT0/charge_full_design\") <= 0) ch_design = 0; " +
-                "print cap, stat, v, c, ch_now, ch_full, ch_design }'");
+            executablePower.connectSource("cat /sys/class/power_supply/BAT0/capacity");
+            executableStatus.connectSource("cat /sys/class/power_supply/BAT0/status");
+            executableVoltage.connectSource("cat /sys/class/power_supply/BAT0/voltage_now");
+            executableCurrent.connectSource("cat /sys/class/power_supply/BAT0/current_now");
+            executableChargeNow.connectSource("cat /sys/class/power_supply/BAT0/charge_now");
+            executableChargeFull.connectSource("cat /sys/class/power_supply/BAT0/charge_full");
+        }
+    }
+
+    Timer {
+        id: timerHealth
+        interval: 60000  // 60 seconds for health check
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: {
+            executableHealth.connectSource("cat /sys/class/power_supply/BAT0/charge_full");
         }
     }
 
